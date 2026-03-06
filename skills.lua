@@ -1,37 +1,11 @@
 -- ╔══════════════════════════════════════════════════════╗
--- ║         CRUSTY SKILLS  v7  — BOUNTY STEALTH SUITE    ║
+-- ║         CRUSTY SKILLS  v6  — BOUNTY STEALTH SUITE    ║
 -- ╚══════════════════════════════════════════════════════╝
 
 -- ══════════════════════════════════════════
---  ASSET CACHE
---  Pulls all icons and sounds from executor workspace on launch.
---  Drop files flat in your Velocity workspace folder.
--- ══════════════════════════════════════════
-print("executed")
-local AssetCache = {}
-
-local function RefreshAssets()
-    AssetCache = {}
-    if not getcustomasset then return end
-    local paths = {
-        "icon_core.png","icon_aimbot.png","icon_targeting.png","icon_players.png",
-        "icon_keybinds.png","icon_reset.png","icon_esp.png","icon_hold.png",
-        "icon_toggle.png","icon_legit.png","icon_aggressive.png","icon_hp.png",
-        "icon_specific.png","icon_camera.png","icon_terminate.png","icon_closest.png",
-        "icon_slider.png","icon_note.png","icon_watermark.png","bg.png",
-        "click.mp3","hover.mp3","open.mp3","close.mp3","startup.mp3",
-    }
-    for _, path in ipairs(paths) do
-        local ok, id = pcall(getcustomasset, path)
-        if ok and id then AssetCache[path] = id end
-    end
-end
-
-RefreshAssets()
-
--- ══════════════════════════════════════════
---  ICON SYMBOL TABLE
---  img = workspace filename, fallback = unicode if file missing
+--  ICONS  — drop PNGs in your executor folder
+--  fallback = unicode symbol if PNG not found
+--  img = filename in your workspace folder
 -- ══════════════════════════════════════════
 local S = {
     Core       = { img="icon_core.png",       fallback="⊕" },
@@ -54,6 +28,34 @@ local S = {
     Note       = { img="icon_note.png",        fallback="◉" },
     Watermark  = { img="icon_watermark.png",   fallback="◎" },
 }
+
+-- ══════════════════════════════════════════
+--  ASSET CACHE
+--  Refreshed once at launch — pulls every PNG and MP3
+--  from Workspace\Crusty\Icons and Workspace\Crusty\Sounds
+-- ══════════════════════════════════════════
+local AssetCache = {}
+
+local function RefreshAssets()
+    AssetCache = {}
+    if not getcustomasset then return end
+
+    local paths = {
+        "icon_core.png","icon_aimbot.png","icon_targeting.png","icon_players.png",
+        "icon_keybinds.png","icon_reset.png","icon_esp.png","icon_hold.png",
+        "icon_toggle.png","icon_legit.png","icon_aggressive.png","icon_hp.png",
+        "icon_specific.png","icon_camera.png","icon_terminate.png","icon_closest.png",
+        "icon_slider.png","icon_note.png","icon_watermark.png","bg.png",
+        "click.mp3","hover.mp3","open.mp3","close.mp3","startup.mp3",
+    }
+    for _, path in ipairs(paths) do
+        local ok, id = pcall(getcustomasset, path)
+        if ok and id then AssetCache[path] = id end
+    end
+end
+
+-- Pull all assets immediately on launch
+RefreshAssets()
 
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
@@ -180,9 +182,6 @@ if isfile and isfile(CONFIG_FILE) and readfile then
     pcall(function() DecodeAndApply(readfile(CONFIG_FILE)) end)
 end
 
-
-
-
 -- ══════════════════════════════════════════
 --  SOUND
 -- ══════════════════════════════════════════
@@ -246,7 +245,7 @@ local function MakeIcon(parent, symbol, size, xPos, zIndex, isWatermark)
     xPos    = xPos   or 6
     zIndex  = zIndex or 4
 
-    -- load from asset cache (populated at launch from workspace)
+    -- try PNG from cache first (refreshed at launch)
     local hasPng = false
     local imgId  = nil
     if symbol and symbol.img then
@@ -286,7 +285,6 @@ end
 -- tint helper — works for both ImageLabel and TextLabel
 local function TintIcon(icon, color, transparency)
     if not icon then return end
-    -- watermark icons keep their original PNG colors, never tinted
     if icon:IsA("ImageLabel") and icon:GetAttribute("IsWatermark") then return end
     transparency = transparency or 0
     if icon:IsA("ImageLabel") then
@@ -383,7 +381,7 @@ else
     WMarkIcon.Size     = UDim2.new(0, 50, 1, 0)
     WMarkIcon.Position = UDim2.new(0, -6, 0, 0)
     WMarkIcon.TextSize = 50
-    TintIcon(WMarkIcon, P.Accent, 0.78)  -- fallback text symbol only
+    TintIcon(WMarkIcon, P.Accent, 0.78)
 end
 
 local TitleLbl = Instance.new("TextLabel", Header)
@@ -1139,6 +1137,51 @@ local function RemovePlayerRow(pName)
     if row then row:Destroy() end
     UpdateEmptyLabel()
 end
+
+
+-- ── MANUAL REFRESH BUTTON ───────────────────────────────
+local refreshRow = Instance.new("Frame", PlayF)
+refreshRow.Size                   = UDim2.new(1, -24, 0, 36)
+refreshRow.Position               = UDim2.new(0, 12, 0, 328)
+refreshRow.BackgroundColor3       = P.DimGrey
+refreshRow.BackgroundTransparency = 0.4
+refreshRow.BorderSizePixel        = 0
+refreshRow.ZIndex                 = 3
+Instance.new("UICorner", refreshRow).CornerRadius = UDim.new(0, 8)
+
+local refreshBtn = Instance.new("TextButton", refreshRow)
+refreshBtn.Size               = UDim2.new(1, 0, 1, 0)
+refreshBtn.BackgroundTransparency = 1
+refreshBtn.Text               = "↺  REFRESH  ESP / TEAM / PLAYERS"
+refreshBtn.TextColor3         = P.Accent
+refreshBtn.Font               = Enum.Font.GothamBold
+refreshBtn.TextSize           = 13
+refreshBtn.ZIndex             = 4
+
+refreshBtn.MouseButton1Click:Connect(function()
+    if Terminated then return end
+    PlaySound("click.mp3", 0.5)
+    refreshBtn.Text       = "  refreshing..."
+    refreshBtn.TextColor3 = P.Grey
+    -- rebuild ESP
+    for p, data in pairs(ESP_Table) do
+        if data.Box then pcall(function() data.Box:Destroy() end) end
+        ESP_Table[p] = nil
+    end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            pcall(function() Create3DBox(p) end)
+        end
+    end
+    -- rebuild player list
+    UpdatePlayerList()
+    -- sync team
+    TeamLbl.Text = "FACTION: " .. (LocalPlayer.Team and LocalPlayer.Team.Name:upper() or "—")
+    task.delay(0.8, function()
+        refreshBtn.Text       = "↺  REFRESH  ESP / TEAM / PLAYERS"
+        refreshBtn.TextColor3 = P.Accent
+    end)
+end)
 
 local function UpdatePlayerList()
     if Terminated then return end
